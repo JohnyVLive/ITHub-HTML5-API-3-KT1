@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>ItHub-HMT5-API-3-KT1</title>
+</head>
+<body>
+
+<input id="showLocation" type="button" onclick="getLocation()" value="Определить местоположение">
+
+<div id="container">
+    <div id="geoLocation"></div>
+    <div id="divComment"></div>
+</div>
+<br><br><br>
+<div id="containerShowStats">
+    <input id="loadFromLS" type="button" onclick="loadFromLS()" value="Показать из LocalStorage">
+    <input type="button" onclick="localStorage.clear()" value="Почистить LocalStorage">
+    <br><br><br>
+    <div id="results"></div>
+</div>
+
+<style>
+    table {
+        border-collapse: collapse;
+        border-spacing: 10px 30px;
+        width: 600px;
+        border: 1px solid black;
+    }
+    td {
+        border: 1px solid black;
+        text-align: center;
+    }
+</style>
+
+<script>
+    let container = document.getElementById('container')
+    let geoLocation = document.getElementById('geoLocation')
+    let results = document.getElementById('results')
+    let infoToSave
+
+    function getLocation() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(showPosition, showError)
+        } else {
+            geoLocation.innerHTML = "Geolocation is not supported by this browser."
+            removeCommentForm()
+
+        }
+    }
+
+    function showPosition(position) {
+        geoLocation.innerHTML = "Latitude: " + position.coords.latitude +
+            "<br>Longitude: " + position.coords.longitude
+
+        infoToSave = [position.coords.latitude, position.coords.longitude]
+        addCommentForm()
+
+            // "<br>Accuracy: " + position.coords.accuracy +
+            // "<br>Altitude: " + position.coords.altitude +
+            // "<br>Heading: " + position.coords.heading +
+            // "<br>Speed: " + position.coords.speed +
+            // "<br>Timestamp: " + position.timestamp
+
+    }
+
+    function addCommentForm(){
+        if (!document.getElementById('commentForm')){
+
+            container.append(document.createElement('br'))
+
+            let form = document.createElement('form')
+            form.id = 'commentForm'
+            let commentArea = document.createElement('input')
+            commentArea.id = 'commentArea'
+            commentArea.type = 'text'
+            commentArea.size = 30
+            commentArea.placeholder = 'Введите комментарий'
+            form.append(commentArea)
+
+            form.append(document.createElement('br'))
+            form.append(document.createElement('br'))
+
+            let saveToLSButton = document.createElement('input')
+            saveToLSButton.id = 'saveToLS'
+            saveToLSButton.type = 'button'
+            saveToLSButton.value = 'Сохранить в LocalStorage'
+            saveToLSButton.onclick = () => {saveToLS(commentArea.value)}
+            form.append(saveToLSButton)
+
+            let saveToIDBButton = document.createElement('input')
+            saveToIDBButton.id = 'saveToIDB'
+            saveToIDBButton.type = 'button'
+            saveToIDBButton.value = 'Сохранить в IndexedDB'
+            saveToIDBButton.onclick = () => {saveToIDB(commentArea.value)}
+            form.append(saveToIDBButton)
+
+            container.append(form)
+
+        } else {
+            console.log('Очистим текстовое поле')
+            document.getElementById('commentArea').value = ''
+        }
+
+    }
+
+    function removeCommentForm(){
+        if (document.getElementById('commentForm')){
+            document.getElementById('commentForm').remove()
+        }
+    }
+
+    function showError(error) {
+        removeCommentForm()
+        switch(error.code) {
+            case error.PERMISSION_DENIED:
+                geoLocation.innerHTML = "User denied the request for Geolocation."
+                break;
+            case error.POSITION_UNAVAILABLE:
+                geoLocation.innerHTML = "Location information is unavailable."
+                break;
+            case error.TIMEOUT:
+                geoLocation.innerHTML = "The request to get user location timed out."
+                break;
+            case error.UNKNOWN_ERROR:
+                geoLocation.innerHTML = "An unknown error occurred."
+                break;
+        }
+    }
+
+    function checkLocalStorage(){
+        if (typeof(Storage) !== "undefined") {
+            // Code for localStorage/sessionStorage.
+            return true
+        } else {
+            // Sorry! No Web Storage support
+            return false
+        }
+    }
+
+    function saveToLS(comment){
+        if(checkLocalStorage()){
+            console.log('Сохраняем данные в локалсторадж')
+            if (!localStorage.geoCount){
+                localStorage.geoCount = 1
+            } else {
+                localStorage.geoCount = Number(localStorage.geoCount) + 1
+            }
+
+            if (infoToSave.length == 2){
+                infoToSave.push(comment)
+            } else {
+                infoToSave[2] = comment
+            }
+            localStorage.setItem(`geo-${localStorage.geoCount}`, JSON.stringify(infoToSave))
+            showSuccess()
+        } else {
+            alert('LocalStorage не поддердживается в вашем браузере')
+        }
+    }
+
+    function saveToIDB(){
+        console.log('Сохраняем данные в IDB')
+        showSuccess()
+    }
+
+    function showSuccess(){
+        alert("Данные успешно сохранены")
+    }
+
+        //Проверка поддержки LocalStorage браузером
+
+
+    function loadFromLS(){
+        console.log('Загружаем инфу из локал стораджа')
+
+        if (localStorage.geoCount){
+            drawTableHeader()
+            for (let i = 1; i <= localStorage.geoCount; i++){
+                const info = JSON.parse(localStorage.getItem(`geo-${i}`))
+                drawTable(i, info[0], info[1], info[2])
+            }
+
+        } else {
+            results.innerHTML = 'Нет данных в хранилище. Сначала нужно сохранить.'
+        }
+
+    }
+
+    function drawTableHeader(){
+        if (document.getElementById('table')) document.getElementById('table').remove()
+
+        let table = document.createElement('table')
+        table.id = 'table'
+        let header = table.createTHead()
+        let raw = header.insertRow()
+        let cell = raw.insertCell(0)
+        cell.innerHTML = '<b>Number</b>'
+        cell = raw.insertCell(1)
+        cell.innerHTML = '<b>Latitude</b>'
+        cell = raw.insertCell(2)
+        cell.innerHTML = '<b>Longitude</b>'
+        cell = raw.insertCell(3)
+        cell.innerHTML = '<b>Comment</b>'
+
+        results.append(table)
+    }
+    function drawTable(num, lat, long, comment){
+        let table = document.getElementById('table')
+        let body = table.createTBody()
+        let raw = body.insertRow()
+        let cell = raw.insertCell(0)
+        cell.innerHTML = num
+        cell = raw.insertCell(1)
+        cell.innerHTML = lat
+        cell = raw.insertCell(2)
+        cell.innerHTML = long
+        cell = raw.insertCell(3)
+        cell.innerHTML = comment
+    }
+
+
+</script>
+
+</body>
+</html>
