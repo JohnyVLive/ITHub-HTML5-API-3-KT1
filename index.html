@@ -16,6 +16,9 @@
 <div id="containerShowStats">
     <input id="loadFromLS" type="button" onclick="loadFromLS()" value="Показать из LocalStorage">
     <input type="button" onclick="localStorage.clear()" value="Почистить LocalStorage">
+    <br><br>
+    <input id="loadFromIDB" type="button" onclick="loadFromIDB()" value="Показать из IndexedDB">
+    <input type="button" onclick="clearIDB()" value="Почистить IndexedDB">
     <br><br><br>
     <div id="results"></div>
 </div>
@@ -45,7 +48,6 @@
         } else {
             geoLocation.innerHTML = "Geolocation is not supported by this browser."
             removeCommentForm()
-
         }
     }
 
@@ -61,7 +63,6 @@
             // "<br>Heading: " + position.coords.heading +
             // "<br>Speed: " + position.coords.speed +
             // "<br>Timestamp: " + position.timestamp
-
     }
 
     function addCommentForm(){
@@ -129,6 +130,7 @@
     }
 
     function checkLocalStorage(){
+        //Проверка поддержки LocalStorage браузером
         if (typeof(Storage) !== "undefined") {
             // Code for localStorage/sessionStorage.
             return true
@@ -153,23 +155,11 @@
                 infoToSave[2] = comment
             }
             localStorage.setItem(`geo-${localStorage.geoCount}`, JSON.stringify(infoToSave))
-            showSuccess()
+            showAlert('Информация добавлена в хранилище')
         } else {
             alert('LocalStorage не поддердживается в вашем браузере')
         }
     }
-
-    function saveToIDB(){
-        console.log('Сохраняем данные в IDB')
-        showSuccess()
-    }
-
-    function showSuccess(){
-        alert("Данные успешно сохранены")
-    }
-
-        //Проверка поддержки LocalStorage браузером
-
 
     function loadFromLS(){
         console.log('Загружаем инфу из локал стораджа')
@@ -185,6 +175,113 @@
             results.innerHTML = 'Нет данных в хранилище. Сначала нужно сохранить.'
         }
 
+    }
+
+    function saveToIDB(comment){
+        console.log('Сохраняем данные в IDB')
+        init()
+
+        async function init(){
+            let openRequest = await indexedDB.open("db", 4)
+
+            // создаём хранилище объектов для coords, если ещё не существует
+            openRequest.onupgradeneeded = (event) => {
+                let db = openRequest.result
+                if (!db.objectStoreNames.contains('coords')) {
+                    db.createObjectStore('coords', {keyPath: 'comment'})
+                    console.log('ObjectStore created')
+                }
+            }
+
+            openRequest.onsuccess = function(event) {
+                let db = openRequest.result
+
+                // продолжить работу с базой данных, используя объект db
+                let transaction = db.transaction('coords', 'readwrite')
+                let coords = transaction.objectStore('coords')
+
+                let raw = {
+                    comment: comment,
+                    latitude: infoToSave[0],
+                    longitude: infoToSave[1]
+                }
+                let req = coords.add(raw)
+                req.onsuccess = () => {
+                    console.log('Информация добавлена в хранилище', req.result)
+                    showAlert('Информация добавлена в хранилище')
+                }
+                req.onerror = () => {
+                    console.log('Ошибка добавления в хранилище: ' + req.error)
+                    showAlert('Ошибка добавления в хранилище: ' + req.error)
+                }
+            }
+            openRequest.onerror = function() {
+                console.error("Error", openRequest.error);
+            }
+        }
+    }
+
+    function loadFromIDB(){
+        console.log('Загружаем инфу из IndexedDB')
+        init()
+        async function init() {
+            let openRequest = await indexedDB.open("db", 4)
+            openRequest.onsuccess = (e) => {
+                let db = openRequest.result
+                list(db)
+            }
+            openRequest.onerror = (e) => {
+                console.log('Ошибка подключения к базе: ' + openRequest.error)
+                showAlert('Ошибка подключения к базе: ' + openRequest.error)
+            }
+        }
+
+        async function list(db) {
+            let tx = db.transaction('coords')
+            let coordsStore = tx.objectStore('coords')
+            let coords = await coordsStore.getAll()
+            coords.onsuccess = () => {
+                if (coords.result.length > 0){
+                    drawTableHeader()
+                    let count = 1
+                    for(let elem of coords.result){
+                        drawTable(count, elem.latitude, elem.longitude, elem.comment)
+                        count ++
+                    }
+                    // TODO: Другой вариант выборки через map. Можно учесть в будущем
+                    // listElem = coords.result.map(rec => `<li>Комментарий: ${rec.comment}, Широта: ${rec.latitude}</li>`).join('')
+                } else {
+                    results.innerHTML = 'Нет данных в базе. Сначала нужно сохранить.'
+                }
+            }
+        }
+    }
+
+    function clearIDB(){
+        init()
+        async function init() {
+            let openRequest = await indexedDB.open("db", 4)
+            openRequest.onsuccess = () => {
+                let db = openRequest.result
+                let tx = db.transaction('coords', 'readwrite')
+                let coords = tx.objectStore('coords').clear()
+                coords.onsuccess = () => {
+                    console.log('База почищена')
+                }
+                coords.onerror = (e) => {
+                    console.log('Ошибка очистки: ' + tx.error)
+                }
+            }
+            openRequest.onerror = (e) => {
+                console.log('Ошибка подключения к базе: ' + openRequest.error)
+                showAlert('Ошибка подключения к базе: ' + openRequest.error)
+            }
+        }
+
+    }
+
+    function showAlert(msg){
+        alert(msg)
     }
 
     function drawTableHeader(){
